@@ -904,6 +904,9 @@ ${recentMessages || "New task"}
           if (ctx.sessionManager.getSessionFile() !== sessionFile) return;
           const finalTitle = setPiWebTabTitle(pi, ctx, title);
           lastAutoTitle = finalTitle;
+          if (ctx.hasUI && finalTitle !== fallbackTitle) {
+            ctx.ui.notify(`Session title: ${finalTitle}`, "info");
+          }
         } catch {
           // Background title updates are best-effort; never surface an unhandled rejection.
         }
