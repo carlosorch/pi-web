@@ -279,42 +279,15 @@ describe('automatic input-derived tab titles', () => {
   });
 });
 
-// ── pi_web_set_tab_title tool ───────────────────────────────────────
-describe('pi_web_set_tab_title tool', () => {
-  const orig = { ...process.env };
-
+// ── set_tab_title tool ──────────────────────────────────────────────
+describe('set_tab_title tool', () => {
   afterEach(() => {
-    process.env = { ...orig };
     vi.restoreAllMocks();
   });
 
-  it('keeps the default synchronous response shape', async () => {
-    delete process.env.PI_WEB_BACKGROUND_TAB_TITLE;
+  it('queues LLM-generated title updates', async () => {
     const { pi, ctx, tools } = createExtensionHarness();
-    const tool = tools.get('pi_web_set_tab_title');
-
-    expect(tool).toBeDefined();
-    const result = await tool.execute(
-      'call-1',
-      { title: ' Test Session ' },
-      undefined,
-      undefined,
-      ctx,
-    );
-
-    expect(ctx.ui.setTitle).toHaveBeenCalledWith('Test Session');
-    expect(pi.setSessionName).toHaveBeenCalledWith('Test Session');
-    expect(ctx.ui.notify).not.toHaveBeenCalled();
-    expect(result).toEqual({
-      content: [{ type: 'text', text: 'Session title set to Test Session.' }],
-      details: { title: 'Test Session' },
-    });
-  });
-
-  it('queues title updates when PI_WEB_BACKGROUND_TAB_TITLE is set', async () => {
-    process.env.PI_WEB_BACKGROUND_TAB_TITLE = '1';
-    const { pi, ctx, tools } = createExtensionHarness();
-    const tool = tools.get('pi_web_set_tab_title');
+    const tool = tools.get('set_tab_title');
 
     expect(tool).toBeDefined();
     const result = await tool.execute(
@@ -325,15 +298,11 @@ describe('pi_web_set_tab_title tool', () => {
       ctx,
     );
 
-    expect(ctx.ui.setTitle).toHaveBeenCalledWith('Background Session');
-    expect(pi.setSessionName).toHaveBeenCalledWith('Background Session');
-    expect(ctx.ui.notify).toHaveBeenCalledWith(
-      'Session title set to Background Session.',
-      'info',
-    );
+    expect(ctx.ui.setTitle).not.toHaveBeenCalled();
+    expect(pi.setSessionName).not.toHaveBeenCalled();
     expect(result).toEqual({
       content: [{ type: 'text', text: 'Session title update queued.' }],
-      details: { queued: true, title: 'Background Session' },
+      details: { queued: true, fallbackTitle: 'Background Session' },
     });
   });
 });
