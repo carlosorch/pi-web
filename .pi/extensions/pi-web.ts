@@ -4,6 +4,7 @@ import type {
   ExtensionContext,
   ExecOptions,
 } from "@earendil-works/pi-coding-agent";
+import { complete } from "@earendil-works/pi-ai";
 import { Type } from "typebox";
 import {
   Container,
@@ -797,28 +798,127 @@ async function showRemoteAccess(
 
 export default function (pi: ExtensionAPI) {
   let lastAutoTitle: string | null = null;
+  let titleJobId = 0;
+
+  async function generateAutoTitle(ctx: ExtensionContext, fallbackTitle: string): Promise<string> {
+    const BIG_PICKLE_PROVIDER = "opencode-zen";
+    const BIG_PICKLE_MODEL_ID = "big-pickle";
+
+    const model =
+      ctx.modelRegistry.find(BIG_PICKLE_PROVIDER, BIG_PICKLE_MODEL_ID) ??
+      ctx.modelRegistry
+        .getAll()
+        .find(
+          (candidate) =>
+            candidate.id === BIG_PICKLE_MODEL_ID ||
+            candidate.name?.toLowerCase() === BIG_PICKLE_MODEL_ID
+        );
+
+    if (!model) return fallbackTitle;
+
+    const auth = await ctx.modelRegistry.getApiKeyAndHeaders(model);
+    if (!auth.ok) return fallbackTitle;
+
+    const branch = ctx.sessionManager.getBranch();
+    const recentMessages = branch
+      .filter((e) => e.type === "message" && e.message?.role === "user")
+      .slice(-5)
+      .map((e) => {
+        let text = "";
+        const content = e.message.content;
+        if (typeof content === "string") text = content;
+        else if (Array.isArray(content)) {
+          text = content
+            .filter((b: any) => b.type === "text")
+            .map((b: any) => b.text)
+            .join(" ");
+        }
+        return text.trim();
+      })
+      .filter(Boolean)
+      .join("\n\n");
+
+    const prompt = `You are naming a Pi coding-agent session tab.
+Return exactly one short, specific title (2-5 words).
+Rules: No quotes. Title Case. Mention the actual task. Avoid vague titles. Do not end with a period.
+
+<recent_user_messages>
+${recentMessages || "New task"}
+</recent_user_messages>`;
+
+    try {
+      const response = await complete(
+        model,
+        {
+          messages: [
+            {
+              role: "user",
+              content: [{ type: "text", text: prompt }],
+            },
+          ],
+        },
+        { apiKey: auth.apiKey, headers: auth.headers, temperature: 0.2, maxTokens: 16 }
+      );
+
+      const raw = response.content
+        .filter((c): c is { type: "text"; text: string } => c.type === "text")
+        .map((c) => c.text)
+        .join("\n");
+
+      return raw
+        .trim()
+        .split("\n")[0]!
+        .replace(/^title:\s*/i, "")
+        .replace(/["']/g, "")
+        .replace(/\.$/, "")
+        .trim()
+        .slice(0, 40)
+        .trim() || fallbackTitle;
+    } catch {
+      return fallbackTitle;
+    }
+  }
 
   pi.registerTool({
-    name: "pi_web_set_tab_title",
+    name: "set_tab_title",
     label: "Set Tab Title",
     description:
       "Set the Pi/pi-web session title to a concise description of the user's current task.",
     promptSnippet:
-      "Update the Pi/pi-web session title when the user's task focus changes.",
+      "Update the Pi/pi-web session title when the user's task focus changes. Do not pass a title, one will be generated automatically.",
     promptGuidelines: [
-      "Use pi_web_set_tab_title with a short 2-5 word Title Case summary when the user's task focus changes.",
+      "Use set_tab_title when the user's task focus changes. You do not need to provide the title; it will be derived automatically.",
     ],
     parameters: Type.Object({
-      title: Type.String({ description: "Short 2-5 word session title." }),
+      title: Type.Optional(Type.String({ description: "Ignored. The title is derived automatically via big-pickle." })),
     }),
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-      const title = setPiWebTabTitle(pi, ctx, String(params.title ?? ""));
-      lastAutoTitle = title;
+      const jobId = ++titleJobId;
+      const sessionFile = ctx.sessionManager.getSessionFile();
+      const fallbackTitle = String(params.title || "New Task").trim() || "New Task";
+
+      void (async () => {
+        try {
+          const title = await generateAutoTitle(ctx, fallbackTitle);
+          if (jobId !== titleJobId) return;
+          if (ctx.sessionManager.getSessionFile() !== sessionFile) return;
+          const finalTitle = setPiWebTabTitle(pi, ctx, title);
+          lastAutoTitle = finalTitle;
+        } catch {
+          // Background title updates are best-effort; never surface an unhandled rejection.
+        }
+      })();
+
       return {
-        content: [{ type: "text", text: `Session title set to ${title}.` }],
-        details: { title },
+        content: [{ type: "text", text: "Session title update queued." }],
+        details: { queued: true, fallbackTitle },
       };
     },
+  });
+
+  pi.on("session_shutdown", () => {
+    // Cancel any queued background title update before reload/session replacement.
+    titleJobId++;
   });
 
   pi.on("input", async (event, ctx) => {
