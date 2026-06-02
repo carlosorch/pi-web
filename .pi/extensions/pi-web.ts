@@ -801,18 +801,20 @@ export default function (pi: ExtensionAPI) {
   let titleJobId = 0;
 
   async function generateAutoTitle(ctx: ExtensionContext, fallbackTitle: string): Promise<string> {
-    const BIG_PICKLE_PROVIDER = "opencode-zen";
-    const BIG_PICKLE_MODEL_ID = "big-pickle";
+    const configuredProvider = process.env["PI_WEB_TITLE_MODEL_PROVIDER"]?.trim();
+    const configuredModel = process.env["PI_WEB_TITLE_MODEL"]?.trim();
 
-    const model =
-      ctx.modelRegistry.find(BIG_PICKLE_PROVIDER, BIG_PICKLE_MODEL_ID) ??
-      ctx.modelRegistry
-        .getAll()
-        .find(
-          (candidate) =>
-            candidate.id === BIG_PICKLE_MODEL_ID ||
-            candidate.name?.toLowerCase() === BIG_PICKLE_MODEL_ID
-        );
+    const model = configuredModel
+      ? configuredProvider
+        ? ctx.modelRegistry.find(configuredProvider, configuredModel)
+        : ctx.modelRegistry
+            .getAll()
+            .find(
+              (candidate) =>
+                candidate.id === configuredModel ||
+                candidate.name?.toLowerCase() === configuredModel.toLowerCase(),
+            )
+      : ctx.model;
 
     if (!model) return fallbackTitle;
 
@@ -890,7 +892,7 @@ ${recentMessages || "New task"}
       "Use set_tab_title when the user's task focus changes. You do not need to provide the title; it will be derived automatically.",
     ],
     parameters: Type.Object({
-      title: Type.Optional(Type.String({ description: "Ignored. The title is derived automatically via big-pickle." })),
+      title: Type.Optional(Type.String({ description: "Optional fallback title. The final title is derived automatically by the configured title model." })),
     }),
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const jobId = ++titleJobId;

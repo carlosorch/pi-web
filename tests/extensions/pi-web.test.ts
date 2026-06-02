@@ -298,8 +298,10 @@ describe('set_tab_title tool', () => {
       ctx,
     );
 
-    expect(ctx.ui.setTitle).not.toHaveBeenCalled();
-    expect(pi.setSessionName).not.toHaveBeenCalled();
+    await vi.waitFor(() => {
+      expect(ctx.ui.setTitle).toHaveBeenCalledWith('Background Session');
+    });
+    expect(pi.setSessionName).toHaveBeenCalledWith('Background Session');
     expect(result).toEqual({
       content: [{ type: 'text', text: 'Session title update queued.' }],
       details: { queued: true, fallbackTitle: 'Background Session' },
