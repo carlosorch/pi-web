@@ -137,6 +137,10 @@ Optional extension settings can be added to `~/.config/pi-web/env`:
 # Queue tab title updates in the background instead of blocking the agent turn.
 PI_WEB_BACKGROUND_TAB_TITLE=1
 
+# Use a specific model for generated tab titles. If unset, pi-web uses the current session model.
+PI_WEB_TITLE_MODEL_PROVIDER=<provider>
+PI_WEB_TITLE_MODEL=<model-id>
+
 # Disable the short title that pi-web derives from each user message.
 PI_WEB_DISABLE_INPUT_DERIVED_TITLE=1
 ```

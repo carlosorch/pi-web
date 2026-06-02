@@ -62,7 +62,7 @@ After `pi install npm:@ygncode/pi-web`, you get:
 | `/pi-web` | Show status, version, start/stop/restart the server, or update |
 | `/remote` | Show a QR code and URL for remote access over Tailscale |
 | `/refresh` | Pull new messages written from remote browsers back into the terminal session |
-| `set_tab_title` | Tool that updates the session title; also auto‑derives a short title from each user message. Set `PI_WEB_BACKGROUND_TAB_TITLE=1` to queue title updates in the background, or `PI_WEB_DISABLE_INPUT_DERIVED_TITLE=1` to opt out of input-derived titles. |
+| `set_tab_title` | Tool that generates and updates the session title; also auto‑derives a short title from each user message. Set `PI_WEB_BACKGROUND_TAB_TITLE=1` to queue title updates in the background, `PI_WEB_TITLE_MODEL_PROVIDER`/`PI_WEB_TITLE_MODEL` to choose the title model, or `PI_WEB_DISABLE_INPUT_DERIVED_TITLE=1` to opt out of input-derived titles. |
 
 The package also installs the pi-web binary to `~/.pi/agent/bin/pi-web` and sets up auto-start on login.
 
